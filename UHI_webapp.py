@@ -12,11 +12,11 @@ import ast  # For safely evaluating GeoJSON-like strings
 def load_model():
     url = "https://github.com/Levice085/Year5project/raw/refs/heads/main/UHI_model.sav"
     response = requests.get(url)
-    
+
     # Save the model locally
     with open("UHI_model.sav", "wb") as f:
         f.write(response.content)
-    
+
     # Load and return the model
     return joblib.load("UHI_model.sav")
 
@@ -50,52 +50,56 @@ uploaded_file = st.file_uploader("Upload dataset (CSV)", type=["csv"])
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
-    # -------------------- Check for Required Columns -------------------- #
-    feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class', 'suhi']  # Adjust based on your model
-    missing_cols = [col for col in feature_columns if col not in df.columns]
-    
-    if missing_cols:
-        st.error(f"❌ Missing columns in dataset: {missing_cols}")
+    # -------------------- Check if 'geometry' Column Exists -------------------- #
+    if "geometry" not in df.columns:
+        st.error("❌ Missing 'geometry' column in dataset! Ensure your file contains this column.")
     else:
-        # Convert feature columns to float
-        df[feature_columns] = df[feature_columns].astype(float)
-
         # Extract latitude and longitude from the "geometry" column
         df[["latitude", "longitude"]] = df["geometry"].apply(extract_coordinates)
 
         # Drop rows with missing lat/lon values
         df = df.dropna(subset=["latitude", "longitude"])
 
-        # Predict UHI values
-        df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
+        # -------------------- Check for Required Feature Columns -------------------- #
+        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class', 'suhi']  # Adjust based on your model
+        missing_cols = [col for col in feature_columns if col not in df.columns]
 
-        # -------------------- Display Predictions -------------------- #
-        st.subheader("Sample Predictions")
-        st.dataframe(df[["latitude", "longitude", "UHI_Prediction"]].head())
+        if missing_cols:
+            st.error(f"❌ Missing columns in dataset: {missing_cols}")
+        else:
+            # Convert feature columns to float
+            df[feature_columns] = df[feature_columns].astype(float)
 
-        # -------------------- Create Interactive Folium Map -------------------- #
-        st.subheader("UHI Prediction Map")
-        m = folium.Map(location=[df["latitude"].mean(), df["longitude"].mean()], zoom_start=10)
+            # Predict UHI values
+            df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
 
-        # Add data points to the map
-        for _, row in df.iterrows():
-            folium.CircleMarker(
-                location=[row["latitude"], row["longitude"]],
-                radius=6,
-                color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
-                fill=True,
-                fill_color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
-                fill_opacity=0.6,
-                popup=f"UHI Prediction: {row['UHI_Prediction']:.2f}",
-            ).add_to(m)
+            # -------------------- Display Predictions -------------------- #
+            st.subheader("Sample Predictions")
+            st.dataframe(df[["latitude", "longitude", "UHI_Prediction"]].head())
 
-        # Display the map
-        folium_static(m)
+            # -------------------- Create Interactive Folium Map -------------------- #
+            st.subheader("UHI Prediction Map")
+            m = folium.Map(location=[df["latitude"].mean(), df["longitude"].mean()], zoom_start=10)
 
-        # -------------------- Download Predictions -------------------- #
-        st.download_button(
-            label="📥 Download Predictions",
-            data=df.to_csv(index=False),
-            file_name="uhi_predictions.csv",
-            mime="text/csv"
-        )
+            # Add data points to the map
+            for _, row in df.iterrows():
+                folium.CircleMarker(
+                    location=[row["latitude"], row["longitude"]],
+                    radius=6,
+                    color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
+                    fill=True,
+                    fill_color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
+                    fill_opacity=0.6,
+                    popup=f"UHI Prediction: {row['UHI_Prediction']:.2f}",
+                ).add_to(m)
+
+            # Display the map
+            folium_static(m)
+
+            # -------------------- Download Predictions -------------------- #
+            st.download_button(
+                label="📥 Download Predictions",
+                data=df.to_csv(index=False),
+                file_name="uhi_predictions.csv",
+                mime="text/csv"
+            )

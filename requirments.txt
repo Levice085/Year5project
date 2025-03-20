@@ -1,6 +1,0 @@
-numpy==2.2.4
-streamlit==1.43.2
-pandas==2.2.3
-folium==0.19.5
-joblib==1.4.2
-streamlit_folium==0.24.0

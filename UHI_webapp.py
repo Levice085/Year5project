@@ -3,32 +3,33 @@ import pandas as pd
 import folium
 from streamlit_folium import folium_static
 import joblib
-import numpy as np
 import requests
-import json  # For handling GeoJSON data
+import ast
+import numpy as np
 
-# -------------------- Load Trained Model from GitHub -------------------- #
+# Load trained model from GitHub
 @st.cache_resource
 def load_model():
-    url = "https://github.com/Levice085/Year5project/raw/refs/heads/main/UHI_model.sav"
+    url = "https://github.com/Levice085/Year5project/raw/main/UHI_model.sav"
     response = requests.get(url)
-
-    # Save the model locally
     with open("UHI_model.sav", "wb") as f:
         f.write(response.content)
-
-    # Load and return the model
     return joblib.load("UHI_model.sav")
 
 model = load_model()
 
-# -------------------- Function to Predict UHI -------------------- #
-def predict_uhi(features):
-    return model.predict(features)
+# Function to extract latitude & longitude from GeoJSON format
+def extract_coordinates(geo_json):
+    try:
+        geo_dict = ast.literal_eval(geo_json)  # Convert string to dictionary
+        coordinates = geo_dict.get("coordinates", [None, None])  # Extract coordinates
+        return pd.Series({"Longitude": coordinates[0], "Latitude": coordinates[1]})
+    except:
+        return pd.Series({"Longitude": None, "Latitude": None})
 
-# -------------------- Streamlit UI -------------------- #
-st.title("Urban Heat Island (UHI) Prediction 🌍🔥")
-st.markdown("Upload a **GeoJSON-compatible** dataset to predict UHI values and visualize them on an interactive map.")
+# Streamlit UI
+st.title("Urban Heat Island (UHI) Prediction for Mombasa")
+st.markdown("Upload a dataset to predict and visualize UHI levels in Mombasa.")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload dataset (CSV)", type=["csv"])
@@ -36,55 +37,54 @@ uploaded_file = st.file_uploader("Upload dataset (CSV)", type=["csv"])
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
-    # -------------------- Check if 'geometry' Column Exists -------------------- #
+    # Ensure dataset contains the `.geo` column
     if ".geo" not in df.columns:
-        st.error("❌ Missing 'geometry' column in dataset! Ensure your file contains this column in GeoJSON format.")
+        st.error("The dataset must contain a `.geo` column with coordinates.")
     else:
-        # -------------------- Validate GeoJSON Format -------------------- #
-        def validate_geojson(geo_str):
-            """Checks if the geometry column contains valid GeoJSON format."""
-            try:
-                geo_dict = json.loads(geo_str) if isinstance(geo_str, str) else geo_str
-                if isinstance(geo_dict, dict) and "coordinates" in geo_dict:
-                    return geo_dict  # Return valid GeoJSON
-            except (ValueError, json.JSONDecodeError):
-                pass
-            return None  # Return None for invalid data
+        # Extract latitude and longitude
+        df[["Longitude", "Latitude"]] = df[".geo"].apply(extract_coordinates)
 
-        df[".geo"] = df[".geo"].apply(validate_geojson)
+        # Drop rows with missing coordinates
+        df.dropna(subset=["Longitude", "Latitude"], inplace=True)
 
-        # Remove rows where GeoJSON is invalid
-        df = df.dropna(subset=[".geo"])
+        # Filter data for Mombasa (adjust coordinates range if needed)
+        mombasa_bounds = {
+            "min_lat": -4.1,
+            "max_lat": -3.8,
+            "min_lon": 39.5,
+            "max_lon": 39.8
+        }
+        df = df[
+            (df["Latitude"] >= mombasa_bounds["min_lat"]) & 
+            (df["Latitude"] <= mombasa_bounds["max_lat"]) & 
+            (df["Longitude"] >= mombasa_bounds["min_lon"]) & 
+            (df["Longitude"] <= mombasa_bounds["max_lon"])
+        ]
 
-        # -------------------- Check for Required Feature Columns -------------------- #
-        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']  # Adjust based on your model
-        missing_cols = [col for col in feature_columns if col not in df.columns]
-
-        if missing_cols:
-            st.error(f"❌ Missing columns in dataset: {missing_cols}")
+        if df.empty:
+            st.error("No data points found in Mombasa. Check dataset coordinates.")
         else:
-            # Convert feature columns to float
-            df[feature_columns] = df[feature_columns].astype(float)
+            # Feature columns for prediction
+            feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class', 'suhi']
+            missing_cols = [col for col in feature_columns if col not in df.columns]
 
-            # Predict UHI values
-            df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
+            if missing_cols:
+                st.error(f"Dataset is missing required columns: {missing_cols}")
+            else:
+                df["UHI_Prediction"] = model.predict(df[feature_columns])
 
-            # -------------------- Display Predictions -------------------- #
-            st.subheader("Sample Predictions")
-            st.dataframe(df[[".geo", "UHI_Prediction"]].head())
+                # Display sample predictions
+                st.subheader("Sample Predictions")
+                st.dataframe(df[["Latitude", "Longitude", "UHI_Prediction"]].head())
 
-            # -------------------- Create Interactive Folium Map -------------------- #
-            st.subheader("UHI Prediction Map")
-            m = folium.Map(location=[0, 0], zoom_start=2)  # Default center
+                # Create an interactive Folium map centered on Mombasa
+                st.subheader("UHI Prediction Map")
+                m = folium.Map(location=[-4.05, 39.67], zoom_start=12)
 
-            # Add data points to the map
-            for _, row in df.iterrows():
-                coords = row[".geo"]["coordinates"]
-                if isinstance(coords, list) and len(coords) > 0:
-                    lon, lat = coords[0]  # Extract first coordinate pair
-
+                # Add data points to the map
+                for _, row in df.iterrows():
                     folium.CircleMarker(
-                        location=[lat, lon],
+                        location=[row["Latitude"], row["Longitude"]],
                         radius=6,
                         color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
                         fill=True,
@@ -93,13 +93,13 @@ if uploaded_file is not None:
                         popup=f"UHI Prediction: {row['UHI_Prediction']:.2f}",
                     ).add_to(m)
 
-            # Display the map
-            folium_static(m)
+                # Display the map
+                folium_static(m)
 
-            # -------------------- Download Predictions -------------------- #
-            st.download_button(
-                label="📥 Download Predictions",
-                data=df.to_csv(index=False),
-                file_name="uhi_predictions.csv",
-                mime="text/csv"
-            )
+                # Option to download predictions
+                st.download_button(
+                    label="Download Predictions",
+                    data=df.to_csv(index=False),
+                    file_name="uhi_predictions_mombasa.csv",
+                    mime="text/csv"
+                )

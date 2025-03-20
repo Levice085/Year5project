@@ -2,32 +2,36 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import folium_static
-import joblib  # For loading the trained model
+import joblib
 import numpy as np
-import os
 import requests
-import pickle
+import os
 
-# Load trained model
-#@st.cache_resource
-# Downloading the model file from GitHub
-url = "https://github.com/Levice085/Year5project/raw/refs/heads/main/UHI_model.sav"
+# ========== Load Trained Model ==========
+@st.cache_resource
+def load_model():
+    """Downloads and loads the trained model from GitHub."""
+    model_url = "https://github.com/Levice085/Year5project/raw/main/UHI_model.sav"
+    model_path = "UHI_model.sav"
 
-loaded_model = requests.get(url)
+    # Download model only if not already downloaded
+    if not os.path.exists(model_path):
+        response = requests.get(model_url)
+        with open(model_path, "wb") as f:
+            f.write(response.content)
 
-# Save the downloaded content to a temporary file
-with open('trained_model1.sav', 'wb') as f:
-    pickle.dump(loaded_model, f)
+    # Load model
+    return joblib.load(model_path)
 
+# Load model
+model = load_model()
 
-# Load the saved model
-with open('trained_model1.sav', 'rb') as f:
-    loaded_model = pickle.load(f)
-# Function to predict UHI
+# ========== Function to Predict UHI ==========
 def predict_uhi(features):
+    """Predicts UHI values using the trained model."""
     return model.predict(features)
 
-# Streamlit UI
+# ========== Streamlit UI ==========
 st.title("Urban Heat Island (UHI) Prediction")
 st.markdown("This application predicts UHI values based on environmental parameters and visualizes them on an interactive map.")
 
@@ -36,30 +40,40 @@ uploaded_file = st.file_uploader("Upload dataset (CSV)", type=["csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
-    
-    # Assuming the dataset contains columns like NDVI, LST, etc.
-    feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class', 'suhi']  # Adjust based on your model
-    if not set(feature_columns).issubset(df.columns):
-        st.error(f"Dataset must contain these columns: {feature_columns}")
+
+    # Define feature columns required for prediction
+    feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class', 'suhi']
+
+    # Check for missing columns
+    missing_cols = [col for col in feature_columns if col not in df.columns]
+    if missing_cols:
+        st.error(f"Missing columns in dataset: {missing_cols}")
     else:
-        df["UHI_Prediction"] = predict_uhi(df[feature_columns])
-        
-        # Display results
+        # Convert feature columns to float for consistency
+        df[feature_columns] = df[feature_columns].astype(float)
+
+        # Predict UHI
+        df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
+
+        # Display sample predictions
         st.subheader("Sample Predictions")
         st.dataframe(df[["latitude", "longitude", "UHI_Prediction"]].head())
 
-        # Create an interactive Folium map
+        # ========== Create Interactive Map ==========
         st.subheader("UHI Prediction Map")
+
+        # Initialize map centered at the mean location
         m = folium.Map(location=[df["latitude"].mean(), df["longitude"].mean()], zoom_start=10)
 
         # Add data points to the map
         for _, row in df.iterrows():
+            color = "red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue"
             folium.CircleMarker(
                 location=[row["latitude"], row["longitude"]],
                 radius=6,
-                color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
+                color=color,
                 fill=True,
-                fill_color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
+                fill_color=color,
                 fill_opacity=0.6,
                 popup=f"UHI Prediction: {row['UHI_Prediction']:.2f}",
             ).add_to(m)
@@ -67,7 +81,7 @@ if uploaded_file is not None:
         # Display map
         folium_static(m)
 
-        # Option to download predictions
+        # ========== Option to Download Predictions ==========
         st.download_button(
             label="Download Predictions",
             data=df.to_csv(index=False),

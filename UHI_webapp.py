@@ -5,22 +5,24 @@ from streamlit_folium import folium_static
 import joblib  # For loading the trained model
 import numpy as np
 import os
+import requests
+import pickle
 
 # Load trained model
-@st.cache_resource
+#@st.cache_resource
+# Downloading the model file from GitHub
+url = "https://github.com/Levice085/Year5project/raw/refs/heads/main/UHI_model.sav"
 
-@st.cache_resource
-def load_model():
-    model_path = "UHI_model.sav"
-    if not os.path.exists(model_path):
-        st.error("Model file not found. Ensure 'UHI_model.sav' exists in the correct directory.")
-        return None
-    return joblib.load(model_path)
+loaded_model = requests.get(url)
 
-model = load_model()
-if model is None:
-    st.stop() 
+# Save the downloaded content to a temporary file
+with open('trained_model1.sav', 'wb') as f:
+    pickle.dump(loaded_model, f)
 
+
+# Load the saved model
+with open('trained_model1.sav', 'rb') as f:
+    loaded_model = pickle.load(f)
 # Function to predict UHI
 def predict_uhi(features):
     return model.predict(features)

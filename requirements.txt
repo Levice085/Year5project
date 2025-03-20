@@ -1,3 +1,5 @@
+colorama==0.4.6
+
 altair==5.5.0
 attrs==25.3.0
 blinker==1.9.0
@@ -30,6 +32,7 @@ referencing==0.36.2
 requests==2.32.3
 rpds-py==0.23.1
 six==1.17.0
+scikit-learn==1.6.1
 smmap==5.0.2
 streamlit==1.43.2
 streamlit_folium==0.24.0
@@ -41,3 +44,4 @@ tzdata==2025.1
 urllib3==2.3.0
 watchdog==6.0.0
 xyzservices==2025.1.0
+

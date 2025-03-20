@@ -37,7 +37,7 @@ if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
     # -------------------- Check if 'geometry' Column Exists -------------------- #
-    if "geometry" not in df.columns:
+    if ".geo" not in df.columns:
         st.error("❌ Missing 'geometry' column in dataset! Ensure your file contains this column in GeoJSON format.")
     else:
         # -------------------- Validate GeoJSON Format -------------------- #
@@ -51,17 +51,17 @@ if uploaded_file is not None:
                 pass
             return None  # Return None for invalid data
 
-        df["geometry"] = df["geometry"].apply(validate_geojson)
+        df[".geo"] = df[".geo"].apply(validate_geojson)
 
         # Remove rows where GeoJSON is invalid
-        df = df.dropna(subset=["geometry"])
+        df = df.dropna(subset=[".geo"])
 
         # -------------------- Check for Required Feature Columns -------------------- #
-        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class', 'suhi']  # Adjust based on your model
+        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']  # Adjust based on your model
         missing_cols = [col for col in feature_columns if col not in df.columns]
 
         if missing_cols:
-            st.error(f"❌ Missing columns in dataset: {missing_cols}")
+            st.error(f" Missing columns in dataset: {missing_cols}")
         else:
             # Convert feature columns to float
             df[feature_columns] = df[feature_columns].astype(float)
@@ -71,7 +71,7 @@ if uploaded_file is not None:
 
             # -------------------- Display Predictions -------------------- #
             st.subheader("Sample Predictions")
-            st.dataframe(df[["geometry", "UHI_Prediction"]].head())
+            st.dataframe(df[[".geo", "UHI_Prediction"]].head())
 
             # -------------------- Create Interactive Folium Map -------------------- #
             st.subheader("UHI Prediction Map")
@@ -79,7 +79,7 @@ if uploaded_file is not None:
 
             # Add data points to the map
             for _, row in df.iterrows():
-                coords = row["geometry"]["coordinates"]
+                coords = row[".geo"]["coordinates"]
                 if isinstance(coords, list) and len(coords) > 0:
                     lon, lat = coords[0]  # Extract first coordinate pair
 

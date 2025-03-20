@@ -8,7 +8,7 @@ import numpy as np
 # Load trained model
 @st.cache_resource
 def load_model():
-    return joblib.load("uhi_model.sav")
+    return joblib.load("UHI_model.sav")
 
 model = load_model()
 

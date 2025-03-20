@@ -42,7 +42,7 @@ if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
     # Define feature columns required for prediction
-    feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class', 'suhi']
+    feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']
 
     # Check for missing columns
     missing_cols = [col for col in feature_columns if col not in df.columns]

@@ -55,7 +55,7 @@ if uploaded_file is not None:
         st.error("❌ Missing 'geometry' column in dataset! Ensure your file contains this column.")
     else:
         # Extract latitude and longitude from the "geometry" column
-        df[["latitude", "longitude"]] = df["geometry"].apply(extract_coordinates)
+        df[["latitude", "longitude"]] = df[".geo"].apply(extract_coordinates)
 
         # Drop rows with missing lat/lon values
         df = df.dropna(subset=["latitude", "longitude"])

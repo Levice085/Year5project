@@ -4,13 +4,22 @@ import folium
 from streamlit_folium import folium_static
 import joblib  # For loading the trained model
 import numpy as np
+import os
 
 # Load trained model
 @st.cache_resource
+
+@st.cache_resource
 def load_model():
-    return joblib.load("C:/Users/levie/OneDrive/Desktop/Year 5/project/scripts/UHI_model.sav")
+    model_path = "UHI_model.sav"
+    if not os.path.exists(model_path):
+        st.error("Model file not found. Ensure 'UHI_model.sav' exists in the correct directory.")
+        return None
+    return joblib.load(model_path)
 
 model = load_model()
+if model is None:
+    st.stop() 
 
 # Function to predict UHI
 def predict_uhi(features):

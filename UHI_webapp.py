@@ -1,6 +1,6 @@
 import streamlit as st
 import ee
-import geemap.foliumap as geemap
+import geemap
 import pandas as pd
 import folium
 from streamlit_folium import folium_static

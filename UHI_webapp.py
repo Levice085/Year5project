@@ -1,4 +1,6 @@
 import streamlit as st
+import ee
+import geemap.foliumap as geemap
 import pandas as pd
 import folium
 from streamlit_folium import folium_static
@@ -7,17 +9,22 @@ import numpy as np
 import requests
 import json  # For handling GeoJSON data
 
+# -------------------- Initialize Google Earth Engine -------------------- #
+try:
+    ee.Initialize()
+except Exception as e:
+    ee.Authenticate()
+    ee.Initialize()
+
 # -------------------- Load Trained Model from GitHub -------------------- #
 @st.cache_resource
 def load_model():
     url = "https://github.com/Levice085/Year5project/raw/refs/heads/main/UHI_model.sav"
     response = requests.get(url)
 
-    # Save the model locally
     with open("UHI_model.sav", "wb") as f:
         f.write(response.content)
 
-    # Load and return the model
     return joblib.load("UHI_model.sav")
 
 model = load_model()
@@ -27,61 +34,99 @@ def predict_uhi(features):
     return model.predict(features)
 
 # -------------------- Streamlit UI -------------------- #
-st.title("Urban Heat Island (UHI) Prediction")
-st.markdown("Upload a **GeoJSON-compatible** dataset to predict UHI values and visualize them on an interactive map.")
+st.title("Urban Heat Island (UHI) Mapping & Prediction")
+st.markdown("This app visualizes UHI-related parameters using Google Earth Engine and predicts UHI values based on uploaded data.")
 
-# File uploader
+# -------------------- Define GEE Layers -------------------- #
+admin = ee.FeatureCollection("FAO/GAUL_SIMPLIFIED_500m/2015/level2")
+mvita = admin.filter(ee.Filter.eq('ADM2_NAME', 'Mvita'))
+geometry = mvita.geometry()
+
+# Define Cloud Masking Function
+def cloud_mask(image):
+    scored = ee.Algorithms.Landsat.simpleCloudScore(image)
+    mask = scored.select(['cloud']).lte(10)
+    return image.updateMask(mask)
+
+# Filter Landsat 8 Data
+landsat = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2') \
+    .filter(ee.Filter.lt('CLOUD_COVER', 20)) \
+    .filter(ee.Filter.date('2014-01-01', '2024-10-01')) \
+    .filter(ee.Filter.bounds(geometry)) \
+    .map(cloud_mask)
+
+# Compute Median Composite
+median = landsat.median().clip(geometry)
+
+# Compute NDVI
+ndvi = median.normalizedDifference(['B5', 'B4']).rename('NDVI')
+
+# Compute LST
+thermal_band = median.select('B10')
+lst = thermal_band.expression(
+    '(Tb / (1 + (0.00115 * (Tb / 1.438)) * log(0.98))) - 273.15',
+    {'Tb': thermal_band}
+).rename('LST')
+
+# Land Cover Data
+land_cover = ee.ImageCollection("ESA/WorldCover/v200").first().select('Map')
+
+# -------------------- Display GEE Map -------------------- #
+Map = geemap.Map(center=[-4.05, 39.67], zoom=12)
+Map.addLayer(ndvi, {'min': 0, 'max': 1, 'palette': ['white', 'green']}, "NDVI")
+Map.addLayer(lst, {'min': 25, 'max': 35, 'palette': ['blue', 'red']}, "LST")
+Map.addLayer(land_cover, {'palette': ['yellow', 'red', 'green']}, "Land Cover")
+
+st.subheader("🌍 GEE-Based Map Visualization")
+Map.to_streamlit(height=500)
+
+# -------------------- Upload Data for UHI Prediction -------------------- #
+st.subheader("Upload Dataset for UHI Prediction")
 uploaded_file = st.file_uploader("Upload dataset (CSV)", type=["csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
-    # -------------------- Check if 'geometry' Column Exists -------------------- #
     if ".geo" not in df.columns:
         st.error("Missing 'geometry' column in dataset! Ensure your file contains this column in GeoJSON format.")
     else:
-        # -------------------- Validate GeoJSON Format -------------------- #
+        # Validate GeoJSON Format
         def validate_geojson(geo_str):
-            """Checks if the geometry column contains valid GeoJSON format."""
             try:
                 geo_dict = json.loads(geo_str) if isinstance(geo_str, str) else geo_str
                 if isinstance(geo_dict, dict) and "coordinates" in geo_dict:
-                    return geo_dict  # Return valid GeoJSON
+                    return geo_dict
             except (ValueError, json.JSONDecodeError):
                 pass
-            return None  # Return None for invalid data
+            return None
 
         df[".geo"] = df[".geo"].apply(validate_geojson)
-
-        # Remove rows where GeoJSON is invalid
         df = df.dropna(subset=[".geo"])
 
-        # -------------------- Check for Required Feature Columns -------------------- #
-        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']  # Adjust based on your model
+        # Required Feature Columns
+        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']
         missing_cols = [col for col in feature_columns if col not in df.columns]
 
         if missing_cols:
             st.error(f" Missing columns in dataset: {missing_cols}")
         else:
-            # Convert feature columns to float
             df[feature_columns] = df[feature_columns].astype(float)
 
-            # Predict UHI values
+            # Predict UHI
             df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
 
-            # -------------------- Display Predictions -------------------- #
-            st.subheader("Sample Predictions")
+            st.subheader("📊 Sample Predictions")
             st.dataframe(df[[".geo", "UHI_Prediction"]].head())
 
-            # -------------------- Create Interactive Folium Map -------------------- #
+            # -------------------- Display UHI Predictions on Map -------------------- #
             st.subheader("UHI Prediction Map")
-            m = folium.Map(location=[0, 0], zoom_start=2)  # Default center
+            prediction_map = folium.Map(location=[-4.05, 39.67], zoom_start=12)
 
-            # Add data points to the map
+            # Add Data Points to Map
             for _, row in df.iterrows():
                 coords = row[".geo"]["coordinates"]
                 if isinstance(coords, list) and len(coords) > 0:
-                    lon, lat = coords[0]  # Extract first coordinate pair
+                    lon, lat = coords[0]
 
                     folium.CircleMarker(
                         location=[lat, lon],
@@ -91,10 +136,9 @@ if uploaded_file is not None:
                         fill_color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
                         fill_opacity=0.6,
                         popup=f"UHI Prediction: {row['UHI_Prediction']:.2f}",
-                    ).add_to(m)
+                    ).add_to(prediction_map)
 
-            # Display the map
-            folium_static(m)
+            folium_static(prediction_map)
 
             # -------------------- Download Predictions -------------------- #
             st.download_button(

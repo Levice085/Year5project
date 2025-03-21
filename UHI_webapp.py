@@ -27,7 +27,7 @@ def predict_uhi(features):
     return model.predict(features)
 
 # -------------------- Streamlit UI -------------------- #
-st.title("Urban Heat Island (UHI) Prediction 🌍🔥")
+st.title("Urban Heat Island (UHI) Prediction")
 st.markdown("Upload a **GeoJSON-compatible** dataset to predict UHI values and visualize them on an interactive map.")
 
 # File uploader
@@ -38,7 +38,7 @@ if uploaded_file is not None:
 
     # -------------------- Check if 'geometry' Column Exists -------------------- #
     if ".geo" not in df.columns:
-        st.error("❌ Missing 'geometry' column in dataset! Ensure your file contains this column in GeoJSON format.")
+        st.error("Missing 'geometry' column in dataset! Ensure your file contains this column in GeoJSON format.")
     else:
         # -------------------- Validate GeoJSON Format -------------------- #
         def validate_geojson(geo_str):

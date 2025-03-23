@@ -78,7 +78,7 @@ Map.addLayer(ndvi, {'min': 0, 'max': 1, 'palette': ['white', 'green']}, "NDVI")
 Map.addLayer(lst, {'min': 25, 'max': 35, 'palette': ['blue', 'red']}, "LST")
 Map.addLayer(land_cover, {'palette': ['yellow', 'red', 'green']}, "Land Cover")
 
-st.subheader("🌍 GEE-Based Map Visualization")
+st.subheader("GEE-Based Map Visualization")
 Map.to_streamlit(height=500)
 
 # -------------------- Upload Data for UHI Prediction -------------------- #
@@ -116,7 +116,7 @@ if uploaded_file is not None:
             # Predict UHI
             df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
 
-            st.subheader("📊 Sample Predictions")
+            st.subheader("Sample Predictions")
             st.dataframe(df[[".geo", "UHI_Prediction"]].head())
 
             # -------------------- Display UHI Predictions on Map -------------------- #
@@ -143,7 +143,7 @@ if uploaded_file is not None:
 
             # -------------------- Download Predictions -------------------- #
             st.download_button(
-                label="📥 Download Predictions",
+                label="Download Predictions",
                 data=df.to_csv(index=False),
                 file_name="uhi_predictions.csv",
                 mime="text/csv"

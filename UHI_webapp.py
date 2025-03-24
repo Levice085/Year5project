@@ -7,7 +7,7 @@ from streamlit_folium import folium_static
 import joblib
 import numpy as np
 import requests
-#import pkg_resources
+import pkg_resources
 import json  # For handling GeoJSON data
 
 # -------------------- Initialize Google Earth Engine -------------------- #

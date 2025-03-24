@@ -70,8 +70,16 @@ lst = thermal_band.expression(
 
 # Land Cover Data
 land_cover = ee.ImageCollection("ESA/WorldCover/v200").first().select('Map')
-
+                 
 # -------------------- Display GEE Map -------------------- #
 Map = geemap.Map(center=[-4.05, 39.67], zoom=12)
 Map.addLayer(ndvi, {'min': 0, 'max': 1, 'palette': ['white', 'green']}, "NDVI")
-Map.addLayer(lst, {'min': 25, 'max': 35, 'palette': ['blue',
+Map.addLayer(lst, {'min': 25, 'max': 35, 'palette': ['blue', 'red']}, "LST")
+Map.addLayer(land_cover, {'palette': ['yellow', 'red', 'green']}, "Land Cover")
+
+st.subheader("GEE-Based Map Visualization")
+Map.to_streamlit(height=500)
+
+# -------------------- Upload Data for UHI Prediction -------------------- #
+st.subheader("Upload Dataset for UHI Prediction")
+uploaded_file = st.file_uploader("Upload dataset (CSV)", type=["csv"])

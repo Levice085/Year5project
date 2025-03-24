@@ -8,6 +8,7 @@ import joblib
 import numpy as np
 import requests
 import json  # For handling GeoJSON data
+import pkg_resources
 
 # -------------------- Initialize Google Earth Engine -------------------- #
 try:

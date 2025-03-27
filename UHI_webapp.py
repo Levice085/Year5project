@@ -29,13 +29,18 @@ def predict_uhi(features):
 # -------------------- Function to Extract Coordinates -------------------- #
 def extract_coordinates(geo_json):
     try:
+        # Convert to dictionary if input is a string
         geo_dict = json.loads(geo_json) if isinstance(geo_json, str) else geo_json
-        if isinstance(geo_dict, dict) and "coordinates" in geo_dict and geo_dict["coordinates"]:
-            lon, lat = geo_dict["coordinates"][0]  # Extract first coordinate pair
-            return lat, lon
-    except (ValueError, json.JSONDecodeError, IndexError):
-        pass
-    return None, None
+
+        # Ensure it's a valid Point GeoJSON
+        if isinstance(geo_dict, dict) and geo_dict.get("type") == "Point":
+            lon, lat = geo_dict["coordinates"]  # Extract longitude, latitude
+            return lat, lon  # Return as (latitude, longitude)
+    
+    except (ValueError, json.JSONDecodeError, IndexError, TypeError):
+        pass  # Catch all parsing errors
+    
+    return None, None  # Return None if invalid
 
 # -------------------- Streamlit UI -------------------- #
 st.title("Urban Heat Island (UHI) Prediction")
@@ -53,8 +58,8 @@ if uploaded_file is not None:
     else:
         # Extract latitude and longitude
         df["Latitude"], df["Longitude"] = zip(*df[".geo"].apply(extract_coordinates))
-        df = df.dropna(subset=["Latitude", "Longitude"])  # Remove rows with missingcoordinates
-        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']  # Adjust based on your model
+        df = df.dropna(subset=["Latitude", "Longitude"])
+        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']
 
         # Ensure feature columns exist and contain valid numbers
         df[feature_columns] = df[feature_columns].apply(pd.to_numeric, errors="coerce")
@@ -63,7 +68,6 @@ if uploaded_file is not None:
         df = df.dropna(subset=feature_columns)
 
         # -------------------- Check for Required Feature Columns -------------------- #
-        
         missing_cols = [col for col in feature_columns if col not in df.columns]
 
         if missing_cols:

@@ -87,12 +87,6 @@ if uploaded_file:
 
     st.subheader("UHI Hotspots Map")
 
-# Ensure correct column names
-df.rename(columns={"Latitude": "latitude", "Longitude": "longitude"}, inplace=True)
-
-# Drop rows with missing lat/lon
-df = df.dropna(subset=["latitude", "longitude"])
-
 # Generate the map
 m = folium.Map(location=[df["latitude"].mean(), df["longitude"].mean()], zoom_start=12)
 

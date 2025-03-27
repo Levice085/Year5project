@@ -75,11 +75,7 @@ if uploaded_file is not None:
         # Predict UHI values
             df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
 
-        # Display some predictions for verification
-        st.write("Sample Predictions:", df[["UHI_Prediction"]].head())
-
-
-            
+         
             # -------------------- Display Predictions -------------------- #
         st.subheader("Sample Predictions")
         st.dataframe(df[["Latitude", "Longitude", "UHI_Prediction"].head()])

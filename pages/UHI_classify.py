@@ -64,7 +64,7 @@ if uploaded_file:
     # Display model accuracy
     st.subheader("Model Performance")
     st.write(f"**Model Accuracy:** {accuracy:.2f}")
-    st.text(classification_report(y_test, y_pred, target_names=risk_mapping.keys()))
+    st.text(classification_report(y_test, y_pred))
 
     # Predict risk levels for full dataset
     df["Predicted_Risk"] = clf.predict(X)

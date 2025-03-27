@@ -40,7 +40,7 @@ if uploaded_file:
     st.dataframe(df.head())
 
     # Ensure required columns exist
-    required_columns = ["Latitude", "Longitude", "LST", "NDVI", "EMM", "suhi"]
+    required_columns = ["LST", "NDVI", "EMM", "suhi",".geo"]
     if not all(col in df.columns for col in required_columns):
         st.error(f"Missing required columns: {set(required_columns) - set(df.columns)}")
         st.stop()

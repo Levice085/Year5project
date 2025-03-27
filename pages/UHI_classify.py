@@ -6,11 +6,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 import joblib
+from streamlit_folium import st_folium
 
 # Set page config
 st.set_page_config(page_title="UHI Risk Classification", layout="wide")
 
-st.title("🌡️ UHI Risk Classification")
+st.title("UHI Risk Classification")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
@@ -78,8 +79,38 @@ if uploaded_file:
     st.dataframe(df[["latitude", "longitude", "LST", "Predicted_Risk_Label"]])
 
     # Generate map with hotspots
-    st.subheader("🗺️ UHI Hotspots Map")
+    st.subheader("UHI Hotspots Map")
     m = folium.Map(location=[df["latitude"].mean(), df["longitude"].mean()], zoom_start=12)
 
     # Color coding for risk levels
     color_map = {"High Risk": "red", "Moderate Risk": "orange", "Low Risk": "green"}
+
+    st.subheader("UHI Hotspots Map")
+
+# Ensure correct column names
+df.rename(columns={"Latitude": "latitude", "Longitude": "longitude"}, inplace=True)
+
+# Drop rows with missing lat/lon
+df = df.dropna(subset=["latitude", "longitude"])
+
+# Generate the map
+m = folium.Map(location=[df["latitude"].mean(), df["longitude"].mean()], zoom_start=12)
+
+# Define color mapping
+color_map = {"High Risk": "red", "Moderate Risk": "orange", "Low Risk": "green"}
+
+# Add markers
+for _, row in df.iterrows():
+    folium.CircleMarker(
+        location=[row["latitude"], row["longitude"]],
+        radius=6,
+        color=color_map.get(row["Predicted_Risk_Label"], "blue"),
+        fill=True,
+        fill_color=color_map.get(row["Predicted_Risk_Label"], "blue"),
+        fill_opacity=0.6,
+        popup=f"Risk: {row['Predicted_Risk_Label']}",
+    ).add_to(m)
+
+# Display the map
+st_folium(m)
+

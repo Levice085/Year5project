@@ -53,10 +53,17 @@ if uploaded_file is not None:
     else:
         # Extract latitude and longitude
         df["Latitude"], df["Longitude"] = zip(*df[".geo"].apply(extract_coordinates))
-        df = df.dropna(subset=["Latitude", "Longitude"])  # Remove rows with missing coordinates
+        df = df.dropna(subset=["Latitude", "Longitude"])  # Remove rows with missingcoordinates
+        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']  # Adjust based on your model
+
+        # Ensure feature columns exist and contain valid numbers
+        df[feature_columns] = df[feature_columns].apply(pd.to_numeric, errors="coerce")
+
+# Drop rows with missing values in features
+        df = df.dropna(subset=feature_columns)
 
         # -------------------- Check for Required Feature Columns -------------------- #
-        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']  # Adjust based on your model
+        
         missing_cols = [col for col in feature_columns if col not in df.columns]
 
         if missing_cols:

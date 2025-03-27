@@ -12,7 +12,7 @@ import joblib
 # Set page config
 st.set_page_config(page_title="UHI Risk Classification", layout="wide")
 
-st.title("🌡️ UHI Risk Classification with GeoJSON Support")
+st.title("UHI Risk Classification")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload CSV or GeoJSON file", type=["csv", "geojson"])
@@ -40,7 +40,7 @@ if uploaded_file:
     st.dataframe(df.head())
 
     # Ensure required columns exist
-    required_columns = ["Latitude", "Longitude", "LST", "NDVI", "Emissivity", "SUHI"]
+    required_columns = ["Latitude", "Longitude", "LST", "NDVI", "EMM", "suhi"]
     if not all(col in df.columns for col in required_columns):
         st.error(f"Missing required columns: {set(required_columns) - set(df.columns)}")
         st.stop()

@@ -1,126 +1,105 @@
 import streamlit as st
 import pandas as pd
-import geopandas as gpd
 import folium
-from folium.plugins import HeatMap
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report
-import json
+from streamlit_folium import folium_static
 import joblib
+import numpy as np
+import requests
+import json  # For handling GeoJSON data
 
-# Set page config
-st.set_page_config(page_title="UHI Risk Classification", layout="wide")
+# -------------------- Load Trained Model from GitHub -------------------- #
+@st.cache_resource
+def load_model():
+    url = "https://github.com/Levice085/Year5project/raw/refs/heads/main/UHI_model.sav"
+    response = requests.get(url)
 
-st.title("UHI Risk Classification")
+    # Save the model locally
+    with open("UHI_model.sav", "wb") as f:
+        f.write(response.content)
+
+    # Load and return the model
+    return joblib.load("UHI_model.sav")
+
+model = load_model()
+
+# -------------------- Function to Predict UHI -------------------- #
+def predict_uhi(features):
+    return model.predict(features)
+
+# -------------------- Streamlit UI -------------------- #
+st.title("Urban Heat Island (UHI) Prediction")
+st.markdown("Upload a **GeoJSON-compatible** dataset to predict UHI values and visualize them on an interactive map.")
 
 # File uploader
-uploaded_file = st.file_uploader("Upload CSV or GeoJSON file", type=["csv", "geojson"])
+uploaded_file = st.file_uploader("Upload dataset (CSV)", type=["csv"])
 
-if uploaded_file:
-    file_type = uploaded_file.name.split(".")[-1]
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
 
-    if file_type == "csv":
-        df = pd.read_csv(uploaded_file)
-    elif file_type == "geojson":
-        gdf = gpd.read_file(uploaded_file)  # Load GeoJSON as GeoDataFrame
-        
-        # Ensure it contains geometry
-        if "geometry" not in gdf.columns:
-            st.error("GeoJSON must have a 'geometry' column!")
-            st.stop()
+    # -------------------- Check if 'geometry' Column Exists -------------------- #
+    if ".geo" not in df.columns:
+        st.error("Missing 'geometry' column in dataset! Ensure your file contains this column in GeoJSON format.")
+    else:
+        # -------------------- Validate GeoJSON Format -------------------- #
+        def validate_geojson(geo_str):
+            """Checks if the geometry column contains valid GeoJSON format."""
+            try:
+                geo_dict = json.loads(geo_str) if isinstance(geo_str, str) else geo_str
+                if isinstance(geo_dict, dict) and "coordinates" in geo_dict:
+                    return geo_dict  # Return valid GeoJSON
+            except (ValueError, json.JSONDecodeError):
+                pass
+            return None  # Return None for invalid data
 
-        # Convert GeoJSON geometry to latitude & longitude
-        gdf["Latitude"] = gdf.geometry.y
-        gdf["Longitude"] = gdf.geometry.x
-        df = pd.DataFrame(gdf.drop(columns="geometry"))  # Convert to Pandas DataFrame
+        df[".geo"] = df[".geo"].apply(validate_geojson)
 
-    # Display dataset
-    st.subheader("Uploaded Data Preview")
-    st.dataframe(df.head())
+        # Remove rows where GeoJSON is invalid
+        df = df.dropna(subset=[".geo"])
 
-    # Ensure required columns exist
-    required_columns = ["LST", "NDVI", "EMM", "suhi",".geo"]
-    if not all(col in df.columns for col in required_columns):
-        st.error(f"Missing required columns: {set(required_columns) - set(df.columns)}")
-        st.stop()
+        # -------------------- Check for Required Feature Columns -------------------- #
+        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']  # Adjust based on your model
+        missing_cols = [col for col in feature_columns if col not in df.columns]
 
-    # Define risk classification function
-    def classify_risk(lst):
-        if lst > 35:
-            return "High Risk"
-        elif 30 <= lst <= 35:
-            return "Moderate Risk"
+        if missing_cols:
+            st.error(f" Missing columns in dataset: {missing_cols}")
         else:
-            return "Low Risk"
+            # Convert feature columns to float
+            df[feature_columns] = df[feature_columns].astype(float)
 
-    df["Risk_Level"] = df["LST"].apply(classify_risk)
+            # Predict UHI values
+            df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
 
-    # Encode labels
-    risk_mapping = {"Low Risk": 0, "Moderate Risk": 1, "High Risk": 2}
-    df["Risk_Label"] = df["Risk_Level"].map(risk_mapping)
+            # -------------------- Display Predictions -------------------- #
+            st.subheader("Sample Predictions")
+            st.dataframe(df[[".geo", "UHI_Prediction"]].head())
 
-    # Features for model training
-    features = ["NDVI", "Emissivity", "SUHI"]
-    X = df[features]
-    y = df["Risk_Label"]
+            # -------------------- Create Interactive Folium Map -------------------- #
+            st.subheader("UHI Prediction Map")
+            m = folium.Map(location=[0, 0], zoom_start=2)  # Default center
 
-    # Split dataset
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+            # Add data points to the map
+            for _, row in df.iterrows():
+                coords = row[".geo"]["coordinates"]
+                if isinstance(coords, list) and len(coords) > 0:
+                    lon, lat = coords[0]  # Extract first coordinate pair
 
-    # Train Random Forest model
-    clf = RandomForestClassifier(n_estimators=100, random_state=42)
-    clf.fit(X_train, y_train)
+                    folium.CircleMarker(
+                        location=[lat, lon],
+                        radius=6,
+                        color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
+                        fill=True,
+                        fill_color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
+                        fill_opacity=0.6,
+                        popup=f"UHI Prediction: {row['UHI_Prediction']:.2f}",
+                    ).add_to(m)
 
-    # Predict and evaluate model
-    y_pred = clf.predict(X_test)
-    accuracy = accuracy_score(y_test, y_pred)
+            # Display the map
+            folium_static(m)
 
-    # Display model accuracy
-    st.subheader("📊 Model Performance")
-    st.write(f"**Model Accuracy:** {accuracy:.2f}")
-    st.text(classification_report(y_test, y_pred, target_names=risk_mapping.keys()))
-
-    # Predict risk levels for full dataset
-    df["Predicted_Risk"] = clf.predict(X)
-    df["Predicted_Risk_Label"] = df["Predicted_Risk"].map({v: k for k, v in risk_mapping.items()})
-
-    # Save the trained model
-    joblib.dump(clf, "uhi_risk_model.pkl")
-
-    # Display classified data
-    st.subheader("🗂️ Classified Data")
-    st.dataframe(df[["Latitude", "Longitude", "LST", "Predicted_Risk_Label"]])
-
-    # Generate map with hotspots
-    st.subheader("🗺️ UHI Hotspots Map")
-    m = folium.Map(location=[df["Latitude"].mean(), df["Longitude"].mean()], zoom_start=12)
-
-    # Color coding for risk levels
-    color_map = {"High Risk": "red", "Moderate Risk": "orange", "Low Risk": "green"}
-
-    for _, row in df.iterrows():
-        folium.CircleMarker(
-            location=[row["Latitude"], row["Longitude"]],
-            radius=5,
-            color=color_map[row["Predicted_Risk_Label"]],
-            fill=True,
-            fill_color=color_map[row["Predicted_Risk_Label"]],
-            fill_opacity=0.7,
-            popup=f"LST: {row['LST']:.2f}°C\nRisk: {row['Predicted_Risk_Label']}"
-        ).add_to(m)
-
-    # Display map
-    st.components.v1.html(m._repr_html_(), height=600)
-
-    # Heatmap
-    st.subheader("🔥 Heatmap of UHI Risk Areas")
-    heatmap_data = df[["Latitude", "Longitude", "LST"]].values.tolist()
-    heatmap_map = folium.Map(location=[df["Latitude"].mean(), df["Longitude"].mean()], zoom_start=12)
-    HeatMap(heatmap_data, radius=10).add_to(heatmap_map)
-    st.components.v1.html(heatmap_map._repr_html_(), height=600)
-
-    # Allow downloading of classified data
-    st.subheader("📥 Download Classified Data")
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button(label="Download CSV", data=csv, file_name="uhi_classification.csv", mime="text/csv")
+            # -------------------- Download Predictions -------------------- #
+            st.download_button(
+                label="Download Predictions",
+                data=df.to_csv(index=False),
+                file_name="uhi_predictions.csv",
+                mime="text/csv"
+            )

@@ -34,7 +34,7 @@ if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 
     # -------------------- Check if Latitude and Longitude Columns Exist -------------------- #
-    if "Latitude" not in df.columns or "Longitude" not in df.columns:
+    if "latitude" not in df.columns or "longitude" not in df.columns:
         st.error("Missing 'Latitude' or 'Longitude' column in dataset! Ensure your file contains these columns.")
     else:
         feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']

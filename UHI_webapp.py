@@ -37,41 +37,41 @@ if uploaded_file is not None:
     file_type = uploaded_file.name.split(".")[-1]
 
     if file_type == "csv":
-        df = pd.read_csv(uploaded_file)
+        uhi = pd.read_csv(uploaded_file)
     elif file_type == "geojson":
         gdf = pd.read_json(uploaded_file)  # Load as JSON
-        df = pd.DataFrame(gdf["features"].apply(lambda x: x["properties"]))  # Extract properties
+        uhi = pd.DataFrame(gdf["features"].apply(lambda x: x["properties"]))  # Extract properties
 
         # Extract coordinates
-        df["Longitude"] = gdf["features"].apply(lambda x: x["geometry"]["coordinates"][0])
-        df["Latitude"] = gdf["features"].apply(lambda x: x["geometry"]["coordinates"][1])
+        uhi["Longitude"] = gdf["features"].apply(lambda x: x[".geo"]["coordinates"][0])
+        uhi["Latitude"] = gdf["features"].apply(lambda x: x[".geo"]["coordinates"][1])
 
     # -------------------- Check for Required Feature Columns -------------------- #
     feature_columns = ["EMM", "FV", "LST", "NDVI", "class"]  # Adjust based on your model
-    missing_cols = [col for col in feature_columns if col not in df.columns]
+    missing_cols = [col for col in feature_columns if col not in uhi.columns]
 
     if missing_cols:
         st.error(f"Missing columns in dataset: {missing_cols}")
     else:
         # Convert feature columns to float
-        df[feature_columns] = df[feature_columns].astype(float)
+        uhi[feature_columns] = uhi[feature_columns].astype(float)
 
         # Predict UHI values
-        df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
+        uhi["UHI_Prediction"] = predict_uhi(uhi[feature_columns].values)
 
         # -------------------- Display Predictions -------------------- #
         st.subheader("Sample Predictions")
-        st.dataframe(df[["Latitude", "Longitude", "UHI_Prediction"]].head())
+        st.dataframe(uhi[["Latitude", "Longitude", "UHI_Prediction"]].head())
 
         # -------------------- Create Interactive Folium Map -------------------- #
         st.subheader(" UHI Prediction Map")
 
         # Center map on dataset
-        map_center = [df["Latitude"].mean(), df["Longitude"].mean()]
+        map_center = [uhi["Latitude"].mean(), uhi["Longitude"].mean()]
         m = folium.Map(location=map_center, zoom_start=12)
 
         # Define color mapping based on percentiles
-        q25, q50, q75 = np.percentile(df["UHI_Prediction"], [25, 50, 75])
+        q25, q50, q75 = np.percentile(uhi["UHI_Prediction"], [25, 50, 75])
         
         def get_color(val):
             if val <= q25:
@@ -84,7 +84,7 @@ if uploaded_file is not None:
                 return "red"  # Very High UHI
 
         # Add points to the map
-        for _, row in df.iterrows():
+        for _, row in uhi.iterrows():
             folium.CircleMarker(
                 location=[row["Latitude"], row["Longitude"]],
                 radius=6,

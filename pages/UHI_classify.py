@@ -78,15 +78,6 @@ if uploaded_file:
     st.subheader("Classified Data")
     st.dataframe(df[["latitude", "longitude", "LST", "Predicted_Risk_Label"]])
 
-    # Generate map with hotspots
-    st.subheader("UHI Hotspots Map")
-    m = folium.Map(location=[df["latitude"].mean(), df["longitude"].mean()], zoom_start=12)
-
-    # Color coding for risk levels
-    color_map = {"High Risk": "red", "Moderate Risk": "orange", "Low Risk": "green"}
-
-    st.subheader("UHI Hotspots Map")
-
 # Generate the map
 m = folium.Map(location=[df["latitude"].mean(), df["longitude"].mean()], zoom_start=12)
 

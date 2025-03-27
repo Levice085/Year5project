@@ -55,15 +55,15 @@ if uploaded_file is not None:
                 
                 # -------------------- Display Predictions -------------------- #
                 st.subheader("Sample Predictions")
-                st.dataframe(df[["Latitude", "Longitude", "UHI_Prediction"]].head())
+                st.dataframe(df[["latitude", "longitude", "UHI_Prediction"]].head())
 
                 # -------------------- Create Interactive Folium Map -------------------- #
                 st.subheader("UHI Prediction Map")
-                m = folium.Map(location=[df["Latitude"].mean(), df["Longitude"].mean()], zoom_start=10)
+                m = folium.Map(location=[df["latitude"].mean(), df["longitude"].mean()], zoom_start=10)
 
                 for _, row in df.iterrows():
                     folium.CircleMarker(
-                        location=[row["Latitude"], row["Longitude"]],
+                        location=[row["latitude"], row["longitude"]],
                         radius=6,
                         color="red" if row["UHI_Prediction"] > np.percentile(df["UHI_Prediction"], 75) else "blue",
                         fill=True,

@@ -37,11 +37,17 @@ median = landsat.median().clip(geometry)
 ndvi = median.normalizedDifference(['SR_B5', 'SR_B4']).rename('NDVI')
 # Create Map
 Map = geemap.Map(center=[-4.05, 39.67], zoom=12)
+Map.centerObject(geometry, 12)
 # Add Layers to Map
-Map.addLayer(ndvi, {'min': 0, 'max': 0.7, 'palette': [
+ndvi_vis = {
+    'min': -1,
+    'max': 1,
+    'palette': [
   'FFFFFF', 'CE7E45', 'DF923D', 'F1B555', 'FCD163', '99B718',
   '74A901', '66A000', '529400', '3E8601', '207401', '056201',
-  '004C00', '023B01', '012E01', '011D01', '011301']}, "NDVI")
+  '004C00', '023B01', '012E01', '011D01', '011301']
+  }
+Map.addLayer(ndvi,ndvi_vis, "NDVI")
 
 # Find the minimum and maximum NDVI values
 min_max = ndvi.reduceRegion(
@@ -114,7 +120,7 @@ lst_landsat = thermal.expression(
 lst_vis = {
     'min': 25,
     'max': 35,
-    'palette': ['red', 'white', 'blue']
+    'palette': ['blue', 'white', 'red']
 }
 
 Map.addLayer(lst_landsat, lst_vis, "Land Surface Temperature (LST)")

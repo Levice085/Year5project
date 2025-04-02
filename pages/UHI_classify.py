@@ -37,7 +37,7 @@ if uploaded_file:
     st.dataframe(uhi.head())
 
  # -------------------- Ensure Required Columns -------------------- #
-    required_columns = ["latitude", "longitude", "LST", "NDVI", "EMM", "suhi"]
+    required_columns = ["latitude", "longitude", "LST", "NDVI", "EMM", "SUHI"]
     missing_cols = [col for col in required_columns if col not in uhi.columns]
 
     if missing_cols:
@@ -60,7 +60,7 @@ if uploaded_file:
     uhi["Risk_Label"] = uhi["Risk_Level"].map(risk_mapping)
 
     # Features for prediction
-    feature_columns = ["NDVI", "EMM", "class", "suhi","FV"]
+    feature_columns = ["NDVI", "EMM", "class", "SUHI","FV"]
     uhi[feature_columns] = uhi[feature_columns].apply(pd.to_numeric, errors="coerce")
     uhi = uhi.dropna(subset=feature_columns)  # Remove missing values
 

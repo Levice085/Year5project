@@ -23,10 +23,11 @@ def cloud_mask(image):
     mask = scored.select(['cloud']).lte(10)
     return image.updateMask(mask)
 
+now= ee.Date(ee.Number(ee.Date()))
 # Filter Landsat 8 Data
 landsat = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2') \
     .filter(ee.Filter.lt('CLOUD_COVER', 20)) \
-    .filter(ee.Filter.date('2014-01-01', '2024-10-01')) \
+    .filter(ee.Filter.date('2014-01-01', now)) \
     .filter(ee.Filter.bounds(geometry)) #\
     #.map(cloud_mask)
 
@@ -80,7 +81,7 @@ fv_vis = {
         '004C00', '023B01', '012E01', '011D01', '011301'
     ]
 }
-
+Map.addLayer(fv,fv_vis, "FV")
 # Create a map
 Map = geemap.Map()
 Map.centerObject(geometry, 12)

@@ -93,7 +93,7 @@ if uploaded_file is not None:
                         "weight": 1,
                         "fillOpacity": 0.1,
                     },
-                    tooltip=folium.GeoJsonTooltip(fields=["ADM2_EN"], aliases=["County: "])
+                    tooltip=folium.GeoJsonTooltip(fields=["ADM2_EN"], aliases=["Sub County: "])
                 ).add_to(m)
 
                 # Add UHI prediction points to the map

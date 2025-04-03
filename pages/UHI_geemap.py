@@ -23,13 +23,14 @@ def cloud_mask(image):
     mask = scored.select(['cloud']).lte(10)
     return image.updateMask(mask)
 
-now= ee.Date(ee.Number(ee.Date()))
+
 # Filter Landsat 8 Data
-landsat = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2') \
-    .filter(ee.Filter.lt('CLOUD_COVER', 20)) \
-    .filter(ee.Filter.date('2014-01-01', now)) \
-    .filter(ee.Filter.bounds(geometry)) #\
-    #.map(cloud_mask)
+landsat = (
+    ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
+    .filter(ee.Filter.lt("CLOUD_COVER", 20))
+    .filter(ee.Filter.date("2014-01-01", '2025-03-01'))
+    .filter(ee.Filter.bounds(geometry))
+)
 
 # Compute Median Composite
 median = landsat.median().clip(geometry)

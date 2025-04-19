@@ -1,131 +1,108 @@
 import streamlit as st
-import geemap.foliumap as geemap
-import ee
+import pandas as pd
+import folium
+from streamlit_folium import folium_static
+import joblib
+import numpy as np
+import requests
+from datetime import datetime
 
-# Initialize GEE
-try:
-    ee.Initialize()
-except Exception as e:
-    ee.Authenticate()
-    ee.Initialize()
+# -------------------- Load Trained Model from GitHub -------------------- #
+@st.cache_resource
+def load_model():
+    url = "https://github.com/Levice085/Year5project/raw/refs/heads/main/UHI_model.sav"
+    response = requests.get(url)
+    
+    with open("UHI_model.sav", "wb") as f:
+        f.write(response.content)
+    
+    return joblib.load("UHI_model.sav")
 
-# Create a Streamlit app
-st.title("Urban Heat Island (UHI) Mapping in Mombasa")
+model = load_model()
 
-# Define the region of interest (Mombasa - Mvita)
-admin = ee.FeatureCollection("projects/ee-levice/assets/constituencies")
-mvita = admin.filter(ee.Filter.eq('CONSTITUEN', 'MVITA'))
-geometry = mvita.geometry()
+# -------------------- Function to Predict UHI -------------------- #
+def predict_uhi(features):
+    return model.predict(features)
 
-# Define Cloud Masking Function
-def cloud_mask(image):
-    scored = ee.Algorithms.Landsat.simpleCloudScore(image)
-    mask = scored.select(['cloud']).lte(10)
-    return image.updateMask(mask)
+# -------------------- Streamlit UI -------------------- #
+st.title("Urban Heat Island (UHI) Prediction")
+st.markdown("Upload a dataset containing latitude and longitude to predict UHI values and visualize them over time.")
 
+# File uploader
+uploaded_file = st.file_uploader("Upload dataset (CSV)", type=["csv"])
 
-# Filter Landsat 8 Data
-landsat = (
-    ee.ImageCollection("LANDSAT/LC08/C02/T1_L2")
-    .filter(ee.Filter.lt("CLOUD_COVER", 20))
-    .filter(ee.Filter.date("2014-01-01", '2025-03-01'))
-    .filter(ee.Filter.bounds(geometry))
-)
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
 
-# Compute Median Composite
-median = landsat.median().clip(geometry)
+    # -------------------- Extract date from 'system:index' -------------------- #
+    if 'system:index' in df.columns:
+        df['date'] = pd.to_datetime(
+            df['system:index'].str.extract(r'(\d{8})')[0],
+            format='%Y%m%d',
+            errors='coerce'
+        )
 
-# Compute NDVI
-ndvi = median.normalizedDifference(['SR_B5', 'SR_B4']).rename('NDVI')
-# Create Map
-Map = geemap.Map(center=[-4.05, 39.67], zoom=12)
-Map.centerObject(geometry, 12)
-# Add Layers to Map
-ndvi_vis = {
-    'min': -1,
-    'max': 1,
-    'palette': [
-  'FFFFFF', 'CE7E45', 'DF923D', 'F1B555', 'FCD163', '99B718',
-  '74A901', '66A000', '529400', '3E8601', '207401', '056201',
-  '004C00', '023B01', '012E01', '011D01', '011301']
-  }
-Map.addLayer(ndvi,ndvi_vis, "NDVI")
+    if "latitude" not in df.columns or "longitude" not in df.columns:
+        st.error("Missing 'latitude' or 'longitude' column in dataset!")
+    else:
+        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']
+        missing_cols = [col for col in feature_columns if col not in df.columns]
+        if missing_cols:
+            st.error(f"Missing columns in dataset: {missing_cols}")
+        else:
+            df[feature_columns] = df[feature_columns].apply(pd.to_numeric, errors="coerce")
+            df = df.dropna(subset=feature_columns)
 
-# Find the minimum and maximum NDVI values
-min_max = ndvi.reduceRegion(
-    reducer=ee.Reducer.min().combine(
-        reducer2=ee.Reducer.max(),
-        sharedInputs=True
-    ),
-    geometry=geometry,
-    scale=30,
-    maxPixels=1e9
-)
+            if df.empty:
+                st.error("No valid data available for prediction after cleaning.")
+            else:
+                df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
 
-# Extract min and max values
-ndvi_min = ee.Number(min_max.get('NDVI_min'))
-ndvi_max = ee.Number(min_max.get('NDVI_max'))
+                # -------------------- Display Sample Predictions -------------------- #
+                st.subheader("Sample Predictions")
+                st.dataframe(df[["latitude", "longitude", "UHI_Prediction", "date"]].head())
 
-# Compute Fractional Vegetation Cover (FV)
-fv = ndvi.subtract(ndvi_min).divide(ndvi_max.subtract(ndvi_min)).rename('FV')
+                # -------------------- Date Filter (Slider) -------------------- #
+                st.subheader("Time Series Viewer")
+                available_dates = df['date'].dropna().sort_values().unique()
 
-# Add FV band to NDVI image
-with_fv = ndvi.addBands(fv)
+                if len(available_dates) > 0:
+                    selected_date = st.slider(
+                        "Select Date", 
+                        min_value=available_dates[0],
+                        max_value=available_dates[-1],
+                        value=available_dates[0],
+                        format="YYYY-MM-DD"
+                    )
 
-# Define FV visualization parameters
-fv_vis = {
-    'min': 0,
-    'max': 0.7,
-    'palette': [
-        'FFFFFF', 'CE7E45', 'DF923D', 'F1B555', 'FCD163', '99B718',
-        '74A901', '66A000', '529400', '3E8601', '207401', '056201',
-        '004C00', '023B01', '012E01', '011D01', '011301'
-    ]
-}
-Map.addLayer(fv,fv_vis, "FV")
-# Create a map
-Map = geemap.Map()
-Map.centerObject(geometry, 12)
-Map.addLayer(fv, fv_vis, "Fractional Vegetation (FV)")
+                    filtered_df = df[df['date'] == selected_date]
 
-# Emissivity calculations
-a = ee.Number(0.004)
-b = ee.Number(0.986)
-not_water = ee.Image('JRC/GSW1_0/GlobalSurfaceWater').select('occurrence').mask().Not()
-em = fv.multiply(a).add(b).rename('EMM').updateMask(not_water)
+                    if filtered_df.empty:
+                        st.warning(f"No data available for {selected_date}")
+                    else:
+                        st.write(f"Displaying data for {selected_date.strftime('%Y-%m-%d')}")
 
-# Define Emissivity visualization parameters
-em_vis = {
-    'min': 0.98,
-    'max': 0.99,
-    'palette': ['blue', 'white', 'green']
-}
+                        m = folium.Map(location=[filtered_df["latitude"].mean(), filtered_df["longitude"].mean()], zoom_start=10)
 
-Map.addLayer(em, em_vis, "Emissivity (EMM)")
+                        for _, row in filtered_df.iterrows():
+                            folium.CircleMarker(
+                                location=[row["latitude"], row["longitude"]],
+                                radius=6,
+                                color="red" if row["UHI_Prediction"] > np.percentile(filtered_df["UHI_Prediction"], 75) else "blue",
+                                fill=True,
+                                fill_color="red" if row["UHI_Prediction"] > np.percentile(filtered_df["UHI_Prediction"], 75) else "blue",
+                                fill_opacity=0.6,
+                                popup=f"UHI: {row['UHI_Prediction']:.2f}",
+                            ).add_to(m)
 
-# Load Landsat thermal image (replace with actual image)
-thermal = ee.ImageCollection("LANDSAT/LC08/C02/T1_TOA") \
-    .filterBounds(geometry) \
-    .filterDate('2014-01-01', '2024-10-01') \
-    .median().select('B10').clip(geometry)
+                        folium_static(m)
+                else:
+                    st.warning("No valid dates found in dataset.")
 
-# Compute Land Surface Temperature (LST)
-lst_landsat = thermal.expression(
-    '(Tb / (1 + (0.001145 * (Tb / 1.438)) * log(Ep))) - 273.15',
-    {
-        'Tb': thermal.select('B10'),
-        'Ep': em.select('EMM')
-    }
-).updateMask(not_water).rename('LST')
-
-# Define LST visualization parameters
-lst_vis = {
-    'min': 25,
-    'max': 35,
-    'palette': ['blue', 'white', 'red']
-}
-
-Map.addLayer(lst_landsat, lst_vis, "Land Surface Temperature (LST)")
-
-# Display map in Streamlit
-Map.to_streamlit(height=600)
+                # -------------------- Download Predictions -------------------- #
+                st.download_button(
+                    label="Download All Predictions",
+                    data=df.to_csv(index=False),
+                    file_name="uhi_predictions.csv",
+                    mime="text/csv"
+                )

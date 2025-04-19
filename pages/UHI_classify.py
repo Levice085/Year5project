@@ -17,10 +17,10 @@ def load_model():
     url = "https://github.com/Levice085/Year5project/raw/refs/heads/main/UHI_classify.sav"
     response = requests.get(url)
     
-    with open("UHI_model.sav", "wb") as f:
+    with open("UHI_classify.sav", "wb") as f:
         f.write(response.content)
     
-    return joblib.load("UHI_model.sav")
+    return joblib.load("UHI_classify.sav")
 
 model = load_model()
 

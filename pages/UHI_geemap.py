@@ -33,15 +33,7 @@ uploaded_file = st.file_uploader("Upload dataset (CSV)", type=["csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
-
-    # -------------------- Extract date from 'system:index' -------------------- #
-    if 'system:index' in df.columns:
-        df['date'] = pd.to_datetime(
-            df['system:index'].str.extract(r'(\d{8})')[0],
-            format='%Y%m%d',
-            errors='coerce'
-        )
-
+    
     if "latitude" not in df.columns or "longitude" not in df.columns:
         st.error("Missing 'latitude' or 'longitude' column in dataset!")
     else:
@@ -57,6 +49,15 @@ if uploaded_file is not None:
                 st.error("No valid data available for prediction after cleaning.")
             else:
                 df["UHI_Prediction"] = predict_uhi(df[feature_columns].values)
+
+                # -------------------- Generate Synthetic Dates from system:index -------------------- #
+                if 'system:index' in df.columns:
+                    unique_indices = df['system:index'].unique()
+                    date_range = pd.date_range(start='2014-01-01', periods=len(unique_indices), freq='M')
+                    index_date_map = dict(zip(unique_indices, date_range))
+                    df['date'] = df['system:index'].map(index_date_map)
+                else:
+                    df['date'] = pd.NaT
 
                 # -------------------- Display Sample Predictions -------------------- #
                 st.subheader("Sample Predictions")

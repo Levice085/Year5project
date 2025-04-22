@@ -12,10 +12,10 @@ from datetime import datetime
 def load_model():
     url = "https://github.com/Levice085/Year5project/raw/refs/heads/main/UHI_model.sav"
     response = requests.get(url)
-    
+
     with open("UHI_model.sav", "wb") as f:
         f.write(response.content)
-    
+
     return joblib.load("UHI_model.sav")
 
 model = load_model()
@@ -33,7 +33,7 @@ uploaded_file = st.file_uploader("Upload dataset (CSV)", type=["csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
-    
+
     if "latitude" not in df.columns or "longitude" not in df.columns:
         st.error("Missing 'latitude' or 'longitude' column in dataset!")
     else:
@@ -52,10 +52,10 @@ if uploaded_file is not None:
 
                 # -------------------- Generate Synthetic Dates from system:index -------------------- #
                 if 'system:index' in df.columns:
-                    unique_indices = df['system:index'].unique()
+                    unique_indices = pd.Series(df['system:index'].unique())
                     date_range = pd.date_range(start='2014-01-01', periods=len(unique_indices), freq='M')
                     index_date_map = dict(zip(unique_indices, date_range))
-                    df['date'] = df['system:index'].map(index_date_map)
+                    df['date'] = df['system:index'].map(lambda x: index_date_map.get(x, pd.NaT))
                 else:
                     df['date'] = pd.NaT
 
@@ -63,23 +63,22 @@ if uploaded_file is not None:
                 st.subheader("Sample Predictions")
                 st.dataframe(df[["latitude", "longitude", "UHI_Prediction", "date"]].head())
 
-                # -------------------- Date Filter (Slider) -------------------- #
+                # -------------------- Date Filter (Select Box) -------------------- #
                 st.subheader("Time Series Viewer")
-                available_dates = df['date'].dropna().sort_values().unique()
+                available_dates = pd.to_datetime(df['date'].dropna().unique())
+                available_dates = sorted(available_dates)
 
                 if len(available_dates) > 0:
-                    selected_date = st.slider(
-                        "Select Date", 
-                        min_value=available_dates[0],
-                        max_value=available_dates[-1],
-                        value=available_dates[0],
-                        format="YYYY-MM-DD"
+                    selected_date = st.selectbox(
+                        "Select Date",
+                        options=available_dates,
+                        format_func=lambda x: x.strftime("%Y-%m-%d")
                     )
 
                     filtered_df = df[df['date'] == selected_date]
 
                     if filtered_df.empty:
-                        st.warning(f"No data available for {selected_date}")
+                        st.warning(f"No data available for {selected_date.strftime('%Y-%m-%d')}")
                     else:
                         st.write(f"Displaying data for {selected_date.strftime('%Y-%m-%d')}")
 

@@ -60,7 +60,7 @@ if uploaded_file:
     uhi["Risk_Label"] = uhi["Risk_Level"].map(risk_mapping)
 
     # Features for prediction
-    feature_columns = ["NDVI", "EMM", "class", "SUHI","FV"]
+    feature_columns = ["NDVI", "EMM", "class", "LST","FV"]
     uhi[feature_columns] = uhi[feature_columns].apply(pd.to_numeric, errors="coerce")
     uhi = uhi.dropna(subset=feature_columns)  # Remove missing values
 

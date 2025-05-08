@@ -37,7 +37,7 @@ if uploaded_file:
     st.dataframe(uhi.head())
 
  # -------------------- Ensure Required Columns -------------------- #
-    required_columns = ["latitude", "longitude", "LST", "NDVI", "EMM", "SUHI"]
+    required_columns = ["latitude", "longitude", "LST", "NDVI", "EMM"]
     missing_cols = [col for col in required_columns if col not in uhi.columns]
 
     if missing_cols:

@@ -37,7 +37,7 @@ if uploaded_file is not None:
     if "latitude" not in df.columns or "longitude" not in df.columns:
         st.error("Missing 'latitude' or 'longitude' column in dataset! Ensure your file contains these columns.")
     else:
-        feature_columns = ['EMM', 'FV', 'LST', 'NDVI', 'class']
+        feature_columns = ['EMM','NDBI', 'FV', 'LST', 'NDVI', 'class']
 
         # Ensure feature columns exist and contain valid numbers
         missing_cols = [col for col in feature_columns if col not in df.columns]
